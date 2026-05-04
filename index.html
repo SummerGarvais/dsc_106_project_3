@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sea Ice Thickness Visualization (1850-2000)</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <link rel="stylesheet" href="style.css">
+    <script src="ice_logic.js" type="module"></script>
+</head>
+<body>
+<body>
+    <div class="container">
+        <h1>🌊 Sea Ice Thickness Visualization</h1>
+        <div class="subtitle">CMIP6 Model Data | 1850-2000 (Decadal Intervals)</div>
+        
+        <div class="control-panel" id="yearButtons"></div>
+        
+        <div class="year-display" id="yearDisplay">Year: 1850</div>
+        
+        <div id="visualization" class="visualization">
+            <div class="loading">Loading visualization...</div>
+        </div>
+        
+        <div id="colorbar" class="colorbar"></div>
+        
+        <div id="stats" class="stats">
+            Loading data...
+        </div>
+    </div>
+</body>
+</html>
