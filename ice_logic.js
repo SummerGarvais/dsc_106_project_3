@@ -85,7 +85,7 @@ async function loadYear(year) {
     
     try {
         // Fetch the JSON file for this specific year
-        const response = await fetch(`sea_ice_${year}.json`);
+        const response = await fetch(`./data/sea_ice_${year}.json`);
         
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
