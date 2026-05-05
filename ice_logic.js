@@ -143,36 +143,30 @@ function updateVisualization(data) {
     // Draw each grid cell
     for (let i = 0; i < ny; i++) {
         for (let j = 0; j < nx; j++) {
-            const value = thicknessData[i][j];
+            let flipped_y = ny - i - 1;
+            let flipped_x = nx - j - 1;
+            const value = thicknessData[flipped_y][flipped_x];
             
             // Check for valid ice thickness (positive values)
             if (value !== null && !isNaN(value) && value > 0) {
-                // Color based on ice thickness
-                let color;
-                if (value <= 0.1) {
-                    color = '#f0f8ff';  // Very thin ice
-                } else if (value <= 0.5) {
-                    color = '#c6dbef';
-                } else if (value <= 1.0) {
-                    color = '#9ecae1';
-                } else if (value <= 1.5) {
-                    color = '#6baed6';
-                } else if (value <= 2.0) {
-                    color = '#4292c6';
-                } else if (value <= 3.0) {
-                    color = '#2171b5';
-                } else {
-                    color = '#084594';  // Very thick ice
-                }
+                // Normalize value between 0 and 1 for color interpolation
+                let t = (value - minThick) / (maxThick - minThick);
+                t = Math.min(Math.max(t, 0), 1);  // Clamp between 0 and 1
                 
-                ctx.fillStyle = color;
+                // Continuous color interpolation from light blue to dark blue
+                // Light blue (RGB: 240, 248, 255) to Dark blue (RGB: 8, 69, 148)
+                const r = Math.round(240 - (240 - 8) * t);
+                const g = Math.round(248 - (248 - 69) * t);
+                const b = Math.round(255 - (255 - 148) * t);
+                
+                ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
                 ctx.fillRect(j * cellWidth, i * cellHeight, cellWidth, cellHeight);
                 
-                // Add subtle border for grid lines
-                ctx.strokeStyle = 'rgba(200,200,200,0.3)';
+                // Optional: subtle grid lines
+                ctx.strokeStyle = 'rgba(200,200,200,0.2)';
                 ctx.strokeRect(j * cellWidth, i * cellHeight, cellWidth, cellHeight);
             } else {
-                // Land or no ice - light gray
+                // Land or no ice
                 ctx.fillStyle = '#e0e0e0';
                 ctx.fillRect(j * cellWidth, i * cellHeight, cellWidth, cellHeight);
             }
