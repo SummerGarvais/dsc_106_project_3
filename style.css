@@ -84,7 +84,7 @@ canvas {
     border: 1px solid #ddd;
 }
 
-.stats {
+.display {
     margin-top: 20px;
     padding: 15px;
     background-color: #f8f9fa;
@@ -98,13 +98,25 @@ canvas {
     font-size: 18px;
     color: #7f8c8d;
 }
-
 @keyframes pulse {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.5; }
 }
-
 .loading::after {
     content: '...';
     animation: pulse 1.5s infinite;
+}
+
+.tooltip{
+    position: relative;
+    pointer-events: none;
+    display: inline-block;
+    width: auto;
+    background-color: rgba(0,0,0,0.8);
+    color: white;
+    padding: 5px 10px;
+    border-radius: 5px;
+    font-size: 12px;
+    font-family: monospace;
+    z-index: 420;
 }
