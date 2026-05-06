@@ -31,6 +31,12 @@ function initializeVisualization() {
     // Add hover event listener
     canvas.addEventListener('mousemove', handleMouseMove);
     canvas.addEventListener('mouseleave', () => {
+        const tooltip = document.querySelector(".tooltip");
+        if (tooltip) {
+            console.log("blowing up tooltip!");
+            tooltip.parentNode.removeChild(tooltip);
+        }
+        
         const pointStatsDiv = document.getElementById('point-stats');
         if (pointStatsDiv) {
             pointStatsDiv.innerHTML = `
@@ -302,7 +308,7 @@ function updateToolTip(event, iceDepth) {
     const tooltipX = event.pageX - 16;
     const tooltipY = event.pageY - 16;
 
-    // Create tooltip if one doesn't exist for some reason
+    // Create tooltip if one doesn't exist yet
     let tooltip = document.querySelector(".tooltip");
     if (!tooltip) {
         tooltip = document.createElement('div');
@@ -312,9 +318,9 @@ function updateToolTip(event, iceDepth) {
     }
     
     if (iceDepth !== null && !isNaN(iceDepth) && iceDepth > 0) {
-        tooltip.innerHTML = `❄️ Ice: ${iceDepth.toFixed(3)} ${currentData.units || 'm'}`;
+        tooltip.innerHTML = `❄️ Sea Ice: ${iceDepth.toFixed(3)} ${currentData.units || 'm'}`;
     } else {
-        tooltip.innerHTML = `🌊 No Ice / Land`;
+        tooltip.innerHTML = `🌊 No Sea Ice / Land`;
     }
 
     // Put tooltip under cursor while on canvas
