@@ -5,9 +5,9 @@ let width = 1200;
 let height = 800;
 let colorScale = null;
 
-// Initialize the visualization when the page loads
+// Initialize all viz elements when the page loads
 document.addEventListener('DOMContentLoaded', function () {
-    initializeVisualization();
+    initializeSeaIceCanvas();
     setupYearSlider();
     loadRememberedYear();
 
@@ -23,7 +23,7 @@ function setupEasterEgg() {
     });
 }
 
-function initializeVisualization() {
+function initializeSeaIceCanvas() {
     // Create canvas
     const canvas = document.createElement('canvas');
     canvas.id = 'iceCanvas';
@@ -63,36 +63,6 @@ function initializeVisualization() {
 
     // Create colorbar
     createColorbar();
-}
-
-function setupYearButtons() {
-    const years = [1850, 1860, 1870, 1880, 1890, 1900, 1910, 1920,
-        1930, 1940, 1950, 1960, 1970, 1980, 1990, 2000];
-
-    const panel = document.getElementById('yearButtons');
-    if (!panel) return;
-
-    panel.innerHTML = '';
-
-    years.forEach(year => {
-        const button = document.createElement('button');
-        button.textContent = year;
-        button.className = 'year-selector';
-        if (year === currentYear) button.classList.add('active');
-        button.addEventListener('click', () => {
-            // Update active button style
-            document.querySelectorAll('.year-selector').forEach(btn => {
-                btn.classList.remove('active');
-            });
-            button.classList.add('active');
-
-            // Load the selected year
-            currentYear = year;
-            document.getElementById('yearDisplay').textContent = `Year: ${year}`;
-            loadYear(year);
-        });
-        panel.appendChild(button);
-    });
 }
 
 function setupYearSlider() {
@@ -141,7 +111,8 @@ async function loadYear(year) {
         }
 
         const yearData = await response.json();
-        currentData = yearData;
+        // Update global variable with currently used dataset
+        currentData = yearData; 
 
         // Update the visualization
         updateVisualization(yearData);
@@ -172,17 +143,12 @@ async function loadYear(year) {
 function loadRememberedYear() {
     const slider = document.getElementById('yearSlider');
     const yearDisplay = document.getElementById('yearValue');
-
-    // Get the slider's CURRENT value (browser remembered position)
-    const initialYear = parseInt(slider.value);
-
-    // Update the display to match
-    yearDisplay.textContent = initialYear;
-
-    // Load the data for that year
-    loadYear(initialYear);
+    const initialYear = parseInt(slider.value); // Get the slider's current value
+    yearDisplay.textContent = initialYear; // Update display to match
+    loadYear(initialYear); // Load data for that year
 }
 
+// Updates canvas with sea ice data
 function updateVisualization(data) {
     const canvas = document.getElementById('iceCanvas');
     if (!canvas) return;
@@ -253,15 +219,15 @@ function updateVisualization(data) {
 
     ctx.font = '12px Arial';
     ctx.fillStyle = '#7f8c8d';
-    ctx.fillText('7 discrete thickness levels', 10, 55);
+    ctx.fillText('7 thickness levels', 10, 55);
 
-    // Draw mini color bar at bottom right (7 discrete levels)
+    // Draw mini color bar at bottom right
     const miniBarWidth = 140;
     const miniBarHeight = 12;
     const miniBarX = width - miniBarWidth - 10;
     const miniBarY = height - 25;
 
-    // 7 discrete color segments for mini bar
+    // Define the color segments for mini bar
     const segments = [
         { color: '#f0f8ff', width: miniBarWidth / 7 },  // 0-0.1m
         { color: '#c6dbef', width: miniBarWidth / 7 },  // 0.1-0.5m
@@ -288,6 +254,7 @@ function updateVisualization(data) {
     ctx.fillText('Thicker', miniBarX + miniBarWidth - 30, miniBarY - 2);
 }
 
+// Update stats for that year at the bottom of the page
 function updateOverallStats(data) {
     const thicknessData = data.data;
     const overallStatsDiv = document.getElementById('overall-stats');
