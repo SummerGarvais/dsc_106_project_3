@@ -6,9 +6,9 @@ let height = 800;
 let colorScale = null;
 
 // Initialize the visualization when the page loads
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function () {
     initializeVisualization();
-    setupYearButtons();
+    setupYearSlider();
     loadYear(1850); // Load initial year
 });
 
@@ -21,22 +21,20 @@ function initializeVisualization() {
     canvas.style.cursor = 'crosshair';
     canvas.style.border = '1px solid #ddd';
     canvas.style.boxShadow = '0 0 10px rgba(0,0,0,0.1)';
-    
+
     const vizDiv = document.getElementById('visualization');
     if (vizDiv) {
         vizDiv.innerHTML = '';
         vizDiv.appendChild(canvas);
     }
-    
+
     // Add hover event listener
     canvas.addEventListener('mousemove', handleMouseMove);
     canvas.addEventListener('mouseleave', () => {
         const tooltip = document.querySelector(".tooltip");
-        if (tooltip) {
-            console.log("blowing up tooltip!");
-            tooltip.parentNode.removeChild(tooltip);
-        }
-        
+        tooltip.style.visibility = 'hidden';
+        console.log("hiding tooltip");
+
         const pointStatsDiv = document.getElementById('point-stats');
         if (pointStatsDiv) {
             pointStatsDiv.innerHTML = `
@@ -46,25 +44,25 @@ function initializeVisualization() {
             `;
         }
     });
-    
+
     // Create color scale
     colorScale = d3.scaleSequentialLog()
         .domain([0.01, 5])
         .interpolator(d3.interpolateBlues);
-    
+
     // Create colorbar
     createColorbar();
 }
 
 function setupYearButtons() {
-    const years = [1850, 1860, 1870, 1880, 1890, 1900, 1910, 1920, 
-                   1930, 1940, 1950, 1960, 1970, 1980, 1990, 2000];
-    
+    const years = [1850, 1860, 1870, 1880, 1890, 1900, 1910, 1920,
+        1930, 1940, 1950, 1960, 1970, 1980, 1990, 2000];
+
     const panel = document.getElementById('yearButtons');
     if (!panel) return;
-    
+
     panel.innerHTML = '';
-    
+
     years.forEach(year => {
         const button = document.createElement('button');
         button.textContent = year;
@@ -76,7 +74,7 @@ function setupYearButtons() {
                 btn.classList.remove('active');
             });
             button.classList.add('active');
-            
+
             // Load the selected year
             currentYear = year;
             document.getElementById('yearDisplay').textContent = `Year: ${year}`;
@@ -86,6 +84,35 @@ function setupYearButtons() {
     });
 }
 
+function setupYearSlider() {
+    const slider = document.getElementById('yearSlider');
+    const yearDisplay = document.getElementById('yearValue');
+
+    // Update as you drag
+    slider.addEventListener('input', (event) => {
+        const year = parseInt(event.target.value);
+        yearDisplay.textContent = year; // update year selection label
+        loadYear(year); // update map
+    });
+
+    slider.setAttribute('list', 'decades');
+
+    const datalist = document.createElement('datalist');
+    datalist.id = 'decades';
+
+    const years = [1850, 1860, 1870, 1880, 1890, 1900, 1910, 1920,
+        1930, 1940, 1950, 1960, 1970, 1980, 1990, 2000];
+
+    years.forEach(year => {
+        const option = document.createElement('option');
+        option.value = year;
+        option.label = year;
+        datalist.appendChild(option);
+    });
+
+    document.body.appendChild(datalist);
+}
+
 async function loadYear(year) {
     // Show loading state
     const overallStatsDiv = document.getElementById('overall-stats');
@@ -93,30 +120,30 @@ async function loadYear(year) {
     if (overallStatsDiv) {
         overallStatsDiv.innerHTML = '📡 Loading sea ice data for ' + year + '...';
     }
-    
+
     try {
         // Fetch the JSON file for this specific year
         const response = await fetch(`./data/sea_ice_${year}.json`);
-        
+
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
-        
+
         const yearData = await response.json();
         currentData = yearData;
-        
+
         // Update the visualization
         updateVisualization(yearData);
-        
+
         // Update statistics
         updateOverallStats(yearData);
-        
+
     } catch (error) {
         console.error(`Error loading data for ${year}:`, error);
         if (overallStatsDiv) {
             overallStatsDiv.innerHTML = `❌ Error loading data for ${year}. Make sure sea_ice_${year}.json exists.`;
         }
-        
+
         // Show error on canvas
         const canvas = document.getElementById('iceCanvas');
         if (canvas) {
@@ -125,7 +152,7 @@ async function loadYear(year) {
             ctx.fillRect(0, 0, width, height);
             ctx.fillStyle = '#ff0000';
             ctx.font = '16px Arial';
-            ctx.fillText(`Failed to load data for ${year}`, width/2 - 150, height/2);
+            ctx.fillText(`Failed to load data for ${year}`, width / 2 - 150, height / 2);
         }
     }
 }
@@ -133,20 +160,20 @@ async function loadYear(year) {
 function updateVisualization(data) {
     const canvas = document.getElementById('iceCanvas');
     if (!canvas) return;
-    
+
     const ctx = canvas.getContext('2d');
     const thicknessData = data.data;
-    
+
     if (!thicknessData || thicknessData.length === 0) {
         console.error('No data available');
         return;
     }
-    
+
     const nx = thicknessData[0].length;
     const ny = thicknessData.length;
     const cellWidth = width / nx;
     const cellHeight = height / ny;
-    
+
     // Clear canvas
     ctx.fillStyle = '#f0f0f0';
     ctx.fillRect(0, 0, width, height);
@@ -159,7 +186,7 @@ function updateVisualization(data) {
             let flipped_x = nx - i - 1;
             let flipped_y = ny - j - 1;
             const value = thicknessData[flipped_y][flipped_x];
-            
+
             if (value !== null && !isNaN(value) && value > 0) {
                 // 7 discrete color levels
                 let color;
@@ -178,10 +205,10 @@ function updateVisualization(data) {
                 } else {
                     color = '#084594';  // Level 7: Extremely thick ice
                 }
-                
+
                 ctx.fillStyle = color;
                 ctx.fillRect(i * cellWidth, j * cellHeight, cellWidth, cellHeight);
-                
+
                 // Subtle grid lines
                 ctx.strokeStyle = 'rgba(200,200,200,0.2)';
                 ctx.strokeRect(i * cellWidth, j * cellHeight, cellWidth, cellHeight);
@@ -192,22 +219,22 @@ function updateVisualization(data) {
             }
         }
     }
-    
+
     // Add title and annotations
     ctx.font = 'bold 16px Arial';
     ctx.fillStyle = '#2c3e50';
     ctx.fillText(`Sea Ice Thickness (${data.units || 'm'}) - ${data.year}`, 10, 30);
-    
+
     ctx.font = '12px Arial';
     ctx.fillStyle = '#7f8c8d';
     ctx.fillText('7 discrete thickness levels', 10, 55);
-    
+
     // Draw mini color bar at bottom right (7 discrete levels)
     const miniBarWidth = 140;
     const miniBarHeight = 12;
     const miniBarX = width - miniBarWidth - 10;
     const miniBarY = height - 25;
-    
+
     // 7 discrete color segments for mini bar
     const segments = [
         { color: '#f0f8ff', width: miniBarWidth / 7 },  // 0-0.1m
@@ -218,16 +245,16 @@ function updateVisualization(data) {
         { color: '#2171b5', width: miniBarWidth / 7 },  // 2.0-3.0m
         { color: '#084594', width: miniBarWidth / 7 }   // 3.0+m
     ];
-    
+
     for (let i = 0; i < segments.length; i++) {
         ctx.fillStyle = segments[i].color;
         ctx.fillRect(miniBarX + (i * segments[i].width), miniBarY, segments[i].width, miniBarHeight);
     }
-    
+
     // Border around mini color bar
     ctx.strokeStyle = '#999';
     ctx.strokeRect(miniBarX, miniBarY, miniBarWidth, miniBarHeight);
-    
+
     // Labels for mini color bar
     ctx.fillStyle = '#666';
     ctx.font = '9px Arial';
@@ -239,9 +266,9 @@ function updateOverallStats(data) {
     const thicknessData = data.data;
     const overallStatsDiv = document.getElementById('overall-stats');
     console.log(overallStatsDiv)
-    
+
     if (!overallStatsDiv || !thicknessData) return;
-    
+
     // Flatten the array and filter valid values
     const values = [];
     for (let i = 0; i < thicknessData.length; i++) {
@@ -252,16 +279,16 @@ function updateOverallStats(data) {
             }
         }
     }
-    
+
     if (values.length > 0) {
         const mean = values.reduce((a, b) => a + b, 0) / values.length;
         const max = Math.max(...values);
         const min = Math.min(...values);
-        
+
         // Calculate ice coverage percentage
         const totalCells = thicknessData.length * thicknessData[0].length;
         const iceCoverage = (values.length / totalCells * 100).toFixed(1);
-        
+
         overallStatsDiv.innerHTML = `
             <strong>📊 Statistics for ${data.year}:</strong><br>
             Mean ice thickness: ${mean.toFixed(3)} ${data.units || 'm'} | 
@@ -276,20 +303,20 @@ function updateOverallStats(data) {
 
 function handleMouseMove(event) {
     if (!currentData) return;
-    
+
     const canvas = document.getElementById('iceCanvas');
     if (!canvas) return;
-    
+
     const rect = canvas.getBoundingClientRect();
     const mouseX = event.clientX - rect.left;
     const mouseY = event.clientY - rect.top;
-    
+
     const thicknessData = currentData.data;
     if (!thicknessData) return;
-    
+
     const nx = thicknessData[0].length;
     const ny = thicknessData.length;
-    
+
     const i = Math.floor(mouseX / width * nx);
     const j = Math.floor(mouseY / height * ny);
 
@@ -316,7 +343,9 @@ function updateToolTip(event, iceDepth) {
         // Put at the front so that its coordinates are relative to the screen rather than whatever container it's in
         document.body.prepend(tooltip);
     }
-    
+    tooltip.style.visibility = 'visible';
+    console.log("showing tooltip");
+
     if (iceDepth !== null && !isNaN(iceDepth) && iceDepth > 0) {
         tooltip.innerHTML = `❄️ Sea Ice: ${iceDepth.toFixed(3)} ${currentData.units || 'm'}`;
     } else {
@@ -332,7 +361,7 @@ function updatePointStats(i, j, iceDepth) {
     // Update point stats at bottom of the document with data of cell being hovered over
     const pointStatsDiv = document.getElementById('point-stats');
     if (!pointStatsDiv) return;
-    
+
     if (iceDepth !== null && !isNaN(iceDepth) && iceDepth > 0) {
         pointStatsDiv.innerHTML = `
             📍 <strong>Location:</strong> (${i}, ${j}) | 
@@ -351,16 +380,16 @@ function updatePointStats(i, j, iceDepth) {
 function createColorbar() {
     const colorbarDiv = document.getElementById('colorbar');
     if (!colorbarDiv) return;
-    
+
     colorbarDiv.innerHTML = '';
-    
+
     const svg = d3.select("#colorbar")
         .append("svg")
         .attr("width", 400)
         .attr("height", 70)
         .style("display", "block")
         .style("margin", "0 auto");
-    
+
     // Create gradient
     const defs = svg.append("defs");
     const gradient = defs.append("linearGradient")
@@ -369,7 +398,7 @@ function createColorbar() {
         .attr("y1", "0%")
         .attr("x2", "100%")
         .attr("y2", "0%");
-    
+
     // Add color stops
     gradient.append("stop").attr("offset", "0%").attr("stop-color", "#f0f8ff");
     gradient.append("stop").attr("offset", "20%").attr("stop-color", "#c6dbef");
@@ -377,7 +406,7 @@ function createColorbar() {
     gradient.append("stop").attr("offset", "60%").attr("stop-color", "#6baed6");
     gradient.append("stop").attr("offset", "80%").attr("stop-color", "#2171b5");
     gradient.append("stop").attr("offset", "100%").attr("stop-color", "#084594");
-    
+
     // Draw colorbar rectangle
     svg.append("rect")
         .attr("width", 300)
@@ -387,7 +416,7 @@ function createColorbar() {
         .style("fill", "url(#iceGradient)")
         .style("stroke", "#ddd")
         .style("stroke-width", "1px");
-    
+
     // Add labels
     svg.append("text")
         .attr("x", 50)
@@ -395,21 +424,21 @@ function createColorbar() {
         .text("0 m")
         .style("font-size", "12px")
         .style("text-anchor", "middle");
-    
+
     svg.append("text")
         .attr("x", 200)
         .attr("y", 45)
         .text("1 m")
         .style("font-size", "12px")
         .style("text-anchor", "middle");
-    
+
     svg.append("text")
         .attr("x", 350)
         .attr("y", 45)
         .text("3+ m")
         .style("font-size", "12px")
         .style("text-anchor", "middle");
-    
+
     svg.append("text")
         .attr("x", 200)
         .attr("y", 65)

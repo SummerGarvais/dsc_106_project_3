@@ -28,27 +28,32 @@ h1 {
 
 .control-panel {
     text-align: center;
-    margin-bottom: 30px;
+    margin: 20px 0;
+    padding: 15px;
+    background-color: #f8f9fa;
+    border-radius: 8px;
 }
 
-.year-selector {
-    padding: 10px 20px;
-    font-size: 16px;
-    margin: 0 10px;
+#yearSlider {
+    width: 60%;
+    margin: 0 15px;
     cursor: pointer;
-    background-color: #3498db;
-    color: white;
-    border: none;
+}
+
+#yearValue {
+    font-size: 18px;
+    font-weight: bold;
+    color: #2c3e50;
+    background-color: #ecf0f1;
+    padding: 5px 12px;
     border-radius: 5px;
-    transition: background-color 0.3s;
+    display: inline-block;
+    min-width: 60px;
 }
 
-.year-selector:hover {
-    background-color: #2980b9;
-}
-
-.year-selector.active {
-    background-color: #e74c3c;
+label {
+    font-weight: bold;
+    color: #2c3e50;
 }
 
 .year-display {
@@ -108,6 +113,7 @@ canvas {
 }
 
 .tooltip{
+    visibility: hidden; /* start off hidden, made visible later */
     position: relative;
     pointer-events: none;
     display: inline-block;
