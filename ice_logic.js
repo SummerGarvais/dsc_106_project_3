@@ -9,8 +9,19 @@ let colorScale = null;
 document.addEventListener('DOMContentLoaded', function () {
     initializeVisualization();
     setupYearSlider();
-    loadYear(1850); // Load initial year
+    loadRememberedYear();
+
+    setupEasterEgg();
 });
+
+function setupEasterEgg() {
+    const body = document.querySelector('body');
+    body.addEventListener('click', (event) => {
+        if (event.target === document.body) {
+            body.style.backgroundImage = "url('./assets/rick-roll-rick-ashley.gif')";
+        }
+    });
+}
 
 function initializeVisualization() {
     // Create canvas
@@ -155,6 +166,21 @@ async function loadYear(year) {
             ctx.fillText(`Failed to load data for ${year}`, width / 2 - 150, height / 2);
         }
     }
+}
+
+// Slider will remember its year between refreshes, so load it in to make all other elements match!
+function loadRememberedYear() {
+    const slider = document.getElementById('yearSlider');
+    const yearDisplay = document.getElementById('yearValue');
+
+    // Get the slider's CURRENT value (browser remembered position)
+    const initialYear = parseInt(slider.value);
+
+    // Update the display to match
+    yearDisplay.textContent = initialYear;
+
+    // Load the data for that year
+    loadYear(initialYear);
 }
 
 function updateVisualization(data) {
