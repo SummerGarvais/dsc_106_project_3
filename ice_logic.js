@@ -4,9 +4,45 @@ let currentData = null;
 let width = 1200;
 let height = 800;
 let colorScale = null;
+let baselineData = null;
+let baseMean = 0, baseMax = 0, baseMin = 0, baseIceCoverage = 0;
+let baseValues = [], baseTotalCells = 0;
+
+// Load 1850 data
+async function loadBaselineData() {
+    try {
+        const baseResponse = await fetch(`./data/sea_ice_1850.json`);
+        if (!baseResponse.ok) {
+            throw new Error(`HTTP error! status: ${baseResponse.status}`);
+        }
+        baselineData = await baseResponse.json();
+        const baseThickData = baselineData.data;
+
+        for (let i = 0; i < baseThickData.length; i++) {
+            for (let j = 0; j < baseThickData[i].length; j++) {
+                const val = baseThickData[i][j];
+                if (val !== null && !isNaN(val) && val > 0) {
+                    baseValues.push(val);
+                }
+            }
+        }
+
+        if (baseValues.length > 0) {
+            baseMean = baseValues.reduce((a, b) => a + b, 0) / baseValues.length;
+            baseMax = Math.max(...baseValues);
+            baseMin = Math.min(...baseValues);
+            baseTotalCells = baseThickData.length * baseThickData[0].length;
+            baseIceCoverage = (baseValues.length / baseTotalCells * 100).toFixed(1);
+        }
+    } catch (error) {
+        console.error(`Error loading baseline data:`, error);
+    }
+}
+
 
 // Initialize all viz elements when the page loads
-document.addEventListener('DOMContentLoaded', function () {
+document.addEventListener('DOMContentLoaded', async function () {
+    await loadBaselineData();
     initializeSeaIceCanvas();
     setupYearSlider();
     loadRememberedYear();
@@ -295,15 +331,25 @@ function updateOverallStats(data) {
         const iceCoverage = (values.length / totalCells * 100).toFixed(1);
 
         overallStatsDiv.innerHTML = `
-            <strong>📊 Statistics for ${data.year}:</strong><br>
+            <strong>📊 Overall Statistics for ${data.year}:</strong><br>
             Mean ice thickness: ${mean.toFixed(3)} ${data.units || 'm'} | 
             Max: ${max.toFixed(3)} ${data.units || 'm'} | 
             Min: ${min.toFixed(3)} ${data.units || 'm'}<br>
             Ice-covered area fraction: ${iceCoverage}% (${values.length.toLocaleString()} of ${totalCells.toLocaleString()} cells)
         `;
+        const comparedStatsDiv = document.getElementById('compared-stats');
+        if (comparedStatsDiv && baselineData) {
+            comparedStatsDiv.innerHTML = `
+                <strong>📊 ${data.year} statistics vs. 1850 baseline:</strong><br>
+                Mean ice thickness difference: ${(mean - baseMean).toFixed(3)} ${baselineData.units || 'm'} | 
+                Max difference: ${(max - baseMax).toFixed(3)} ${baselineData.units || 'm'} | 
+                Min difference: ${(min - baseMin).toFixed(3)} ${baselineData.units || 'm'}<br>
+                Ice-covered area difference: ${100 - (iceCoverage / baseIceCoverage * 100).toFixed(3)}% decrease in ice coverage since 1850 (${values.length.toLocaleString()} of ${baseValues.length.toLocaleString()} cells)
+            `;
     } else {
         overallStatsDiv.innerHTML = `📊 No sea ice detected in ${data.year}`;
     }
+}
 }
 
 function handleMouseMove(event) {

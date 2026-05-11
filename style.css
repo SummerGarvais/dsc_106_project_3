@@ -118,3 +118,9 @@ canvas {
     font-family: monospace;
     z-index: 420;
 }
+
+p {
+    text-align: center;
+    opacity: 0.5;
+
+}
