@@ -112,7 +112,7 @@ async function loadYear(year) {
 
         const yearData = await response.json();
         // Update global variable with currently used dataset
-        currentData = yearData; 
+        currentData = yearData;
 
         // Update the visualization
         updateVisualization(yearData);
@@ -204,10 +204,22 @@ function updateVisualization(data) {
                 // Subtle grid lines
                 ctx.strokeStyle = 'rgba(200,200,200,0.2)';
                 ctx.strokeRect(i * cellWidth, j * cellHeight, cellWidth, cellHeight);
+
+                ctx.fillStyle = color;
+                ctx.fillRect(i * cellWidth, j * cellHeight, cellWidth, cellHeight);
+
+                // Ice cells - dark blue borders
+                ctx.strokeStyle = '#2c5f8a';
+                ctx.lineWidth = 0.1;
+                ctx.strokeRect(i * cellWidth, j * cellHeight, cellWidth, cellHeight);
             } else {
                 // Land or no ice
                 ctx.fillStyle = '#e0e0e0';
                 ctx.fillRect(i * cellWidth, j * cellHeight, cellWidth, cellHeight);
+                // Land cells - light gray borders
+                ctx.strokeStyle = '#cccccc';
+                ctx.lineWidth = 0.1;
+                ctx.strokeRect(i * cellWidth, j * cellHeight, cellWidth, cellHeight);
             }
         }
     }
