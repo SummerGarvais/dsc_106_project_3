@@ -51,6 +51,23 @@ h1 {
     min-width: 60px;
 }
 
+#compareSlider {
+    width: 60%;
+    margin: 0 15px;
+    cursor: pointer;
+}
+
+#compareValue {
+    font-size: 18px;
+    font-weight: bold;
+    color: #2c3e50;
+    background-color: #ecf0f1;
+    padding: 5px 12px;
+    border-radius: 5px;
+    display: inline-block;
+    min-width: 60px;
+}
+
 label {
     font-weight: bold;
     color: #2c3e50;
@@ -105,16 +122,26 @@ canvas {
     animation: pulse 1.5s infinite;
 }
 
-.tooltip{
-    visibility: hidden; /* start off hidden, made visible later */
-    position: relative;
+.tooltip {
+    visibility: hidden;
+    position: absolute;          
     pointer-events: none;
     display: inline-block;
     width: auto;
     background-color: rgba(0,0,0,0.8);
     color: white;
     border-radius: 5px;
+    padding: 6px 10px;  
     font-size: 12px;
     font-family: monospace;
     z-index: 420;
+    /*  min-height: 36px; */
+    line-height: 1.5;
+    white-space: nowrap;
+}
+
+p {
+    text-align: center;
+    opacity: 0.5;
+
 }
