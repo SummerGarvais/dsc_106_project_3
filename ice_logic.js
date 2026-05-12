@@ -5,7 +5,8 @@ let width = 1200;
 let height = 800;
 let colorScale = null;
 let baselineData = null;
-let baselineYear = 1850
+let baselineYear = 1850;
+let maxYear = 1850;
 let baseMean = 0, baseMax = 0, baseMin = 0, baseIceCoverage = 0;
 let baseValues = [], baseTotalCells = 0;
 
@@ -109,13 +110,24 @@ function initializeSeaIceCanvas() {
 function setupYearSlider() {
     const slider = document.getElementById('yearSlider');
     const yearDisplay = document.getElementById('yearValue');
+    const compareSlider = document.getElementById('compareSlider');
+    const compareDisplay = document.getElementById('compareValue');
 
     // Update as you drag
     slider.addEventListener('input', (event) => {
         const year = parseInt(event.target.value);
-        yearDisplay.textContent = year; // update year selection label
+        yearDisplay.textContent = year; // Update year selection label
         localStorage.setItem('selectedYear', year);
-        loadYear(year); // update map
+        loadYear(year); // Update map
+
+        
+        maxYear = year; // Update max year for compare slider
+        // Check if compare slider exceeds the new year value
+        const compareValue = parseInt(compareSlider.value);
+        if (compareValue > year) {
+            compareSlider.value = year;
+            compareDisplay.textContent = year;
+        }
     });
 
     slider.setAttribute('list', 'decades');
@@ -139,7 +151,6 @@ function setupYearSlider() {
 async function loadYear(year) {
     // Show loading state
     const overallStatsDiv = document.getElementById('overall-stats');
-    console.log(overallStatsDiv)
     if (overallStatsDiv) {
         overallStatsDiv.innerHTML = '📡 Loading sea ice data for ' + year + '...';
     }
@@ -194,6 +205,7 @@ async function loadRememberedYear() {
 
     if (savedYear) {
         slider.value = savedYear;
+        maxYear = savedYear;
     }
     if (savedCompareYear) {
         compareSlider.value = savedCompareYear;
@@ -214,133 +226,10 @@ async function loadRememberedYear() {
     loadYear(initialYear);
 }
 
-// This is the original version of updateVisualization, before I implemented the comparing feature
-/*
-function updateVisualization(data) {
-    const canvas = document.getElementById('iceCanvas');
-    if (!canvas) return;
-
-    const ctx = canvas.getContext('2d');
-    const thicknessData = data.data;
-
-    if (!thicknessData || thicknessData.length === 0) {
-        console.error('No data available');
-        return;
-    }
-
-    const nx = thicknessData[0].length;
-    const ny = thicknessData.length;
-    const cellWidth = width / nx;
-    const cellHeight = height / ny;
-
-    // Clear canvas
-    ctx.fillStyle = '#f0f0f0';
-    ctx.fillRect(0, 0, width, height);
-
-    const minThick = Math.min(thicknessData);
-    const maxThick = Math.max(thicknessData);
-    // Draw each grid cell
-    for (let i = 0; i < nx; i++) {
-        for (let j = 0; j < ny; j++) {
-            let flipped_x = nx - i - 1;
-            let flipped_y = ny - j - 1;
-            const value = thicknessData[flipped_y][flipped_x];
-
-            if (value !== null && !isNaN(value) && value > 0) {
-                // 7 discrete color levels
-                let color;
-                if (value <= 0.1) {
-                    color = '#f0f8ff';  // Level 1: Very thin ice
-                } else if (value <= 0.5) {
-                    color = '#c6dbef';  // Level 2: Thin ice
-                } else if (value <= 1.0) {
-                    color = '#9ecae1';  // Level 3: Moderate ice
-                } else if (value <= 1.5) {
-                    color = '#6baed6';  // Level 4: Medium ice
-                } else if (value <= 2.0) {
-                    color = '#4292c6';  // Level 5: Thick ice
-                } else if (value <= 3.0) {
-                    color = '#2171b5';  // Level 6: Very thick ice
-                } else {
-                    color = '#084594';  // Level 7: Extremely thick ice
-                }
-
-                ctx.fillStyle = color;
-                ctx.fillRect(i * cellWidth, j * cellHeight, cellWidth, cellHeight);
-
-                // Subtle grid lines
-                ctx.strokeStyle = 'rgba(200,200,200,0.2)';
-                ctx.strokeRect(i * cellWidth, j * cellHeight, cellWidth, cellHeight);
-
-                ctx.fillStyle = color;
-                ctx.fillRect(i * cellWidth, j * cellHeight, cellWidth, cellHeight);
-
-                // Ice cells - dark blue borders
-                ctx.strokeStyle = '#2c5f8a';
-                ctx.lineWidth = 0.1;
-                ctx.strokeRect(i * cellWidth, j * cellHeight, cellWidth, cellHeight);
-            } else {
-                // Land or no ice
-                ctx.fillStyle = '#e0e0e0';
-                ctx.fillRect(i * cellWidth, j * cellHeight, cellWidth, cellHeight);
-                // Land cells - light gray borders
-                ctx.strokeStyle = '#cccccc';
-                ctx.lineWidth = 0.1;
-                ctx.strokeRect(i * cellWidth, j * cellHeight, cellWidth, cellHeight);
-            }
-        }
-    }
-
-    // Add title and annotations
-    ctx.font = 'bold 16px Arial';
-    ctx.fillStyle = '#2c3e50';
-    const yearDifference = data.year - baselineYear;
-    const yearDisplay = yearDifference != 0 ? `${data.year} vs. ${baselineYear}`: `${data.year}`
-    ctx.fillText(`Sea Ice Thickness (${data.units || 'm'}) - ${yearDisplay}`, 10, 30);
-
-    ctx.font = '12px Arial';
-    ctx.fillStyle = '#7f8c8d';
-    ctx.fillText('7 thickness levels', 10, 55);
-
-    // Draw mini color bar at bottom right
-    const miniBarWidth = 140;
-    const miniBarHeight = 12;
-    const miniBarX = width - miniBarWidth - 10;
-    const miniBarY = height - 25;
-
-    // Define the color segments for mini bar
-    const segments = [
-        { color: '#f0f8ff', width: miniBarWidth / 7 },  // 0-0.1m
-        { color: '#c6dbef', width: miniBarWidth / 7 },  // 0.1-0.5m
-        { color: '#9ecae1', width: miniBarWidth / 7 },  // 0.5-1.0m
-        { color: '#6baed6', width: miniBarWidth / 7 },  // 1.0-1.5m
-        { color: '#4292c6', width: miniBarWidth / 7 },  // 1.5-2.0m
-        { color: '#2171b5', width: miniBarWidth / 7 },  // 2.0-3.0m
-        { color: '#084594', width: miniBarWidth / 7 }   // 3.0+m
-    ];
-
-    for (let i = 0; i < segments.length; i++) {
-        ctx.fillStyle = segments[i].color;
-        ctx.fillRect(miniBarX + (i * segments[i].width), miniBarY, segments[i].width, miniBarHeight);
-    }
-
-    // Border around mini color bar
-    ctx.strokeStyle = '#999';
-    ctx.strokeRect(miniBarX, miniBarY, miniBarWidth, miniBarHeight);
-
-    // Labels for mini color bar
-    ctx.fillStyle = '#666';
-    ctx.font = '9px Arial';
-    ctx.fillText('Thinner', miniBarX, miniBarY - 2);
-    ctx.fillText('Thicker', miniBarX + miniBarWidth - 30, miniBarY - 2);
-}
-*/
-
 // Update stats for that year at the bottom of the page
 function updateOverallStats(data) {
     const thicknessData = data.data;
     const overallStatsDiv = document.getElementById('overall-stats');
-    console.log(overallStatsDiv)
 
     if (!overallStatsDiv || !thicknessData) return;
 
@@ -383,10 +272,10 @@ function updateOverallStats(data) {
                 Min difference: ${(min - baseMin).toFixed(3)} ${baselineData.units || 'm'}<br>
                 Ice-covered area difference: ${coverageDiff}% ${coverageDirection} in ice-coverage from ${baselineYear} -> ${data.year} (${values.length.toLocaleString()} of ${baseValues.length.toLocaleString()} cells)
             `;
-    } else {
-        overallStatsDiv.innerHTML = `📊 No sea ice detected in ${data.year}`;
+        } else {
+            overallStatsDiv.innerHTML = `📊 No sea ice detected in ${data.year}`;
+        }
     }
-}
 }
 
 function handleMouseMove(event) {
@@ -561,7 +450,13 @@ function setupComparisonSlider() {
     const compareDisplay = document.getElementById('compareValue');
 
     compareSlider.addEventListener('input', async (event) => {
-        const compareYear = parseInt(event.target.value);
+        let compareYear = parseInt(event.target.value);
+        // Clamp the value to not exceed the year slider's value
+        if (compareYear > maxYear) {
+            compareYear = maxYear;
+            compareSlider.value = maxYear;
+        }
+
         compareDisplay.textContent = compareYear;
         localStorage.setItem('compareYear', compareYear);
         baselineYear = compareYear;
@@ -638,13 +533,13 @@ function updateVisualization(data) {
 
             if (value !== null && !isNaN(value) && value > 0) {
                 let color;
-                if (value <= 0.1)      color = 'rgba(240,248,255,0.85)';
+                if (value <= 0.1) color = 'rgba(240,248,255,0.85)';
                 else if (value <= 0.5) color = 'rgba(198,219,239,0.85)';
                 else if (value <= 1.0) color = 'rgba(158,202,225,0.85)';
                 else if (value <= 1.5) color = 'rgba(107,174,214,0.85)';
                 else if (value <= 2.0) color = 'rgba(66,146,198,0.85)';
                 else if (value <= 3.0) color = 'rgba(33,113,181,0.85)';
-                else                   color = 'rgba(8,69,148,0.85)';
+                else color = 'rgba(8,69,148,0.85)';
 
                 ctx.fillStyle = color;
                 ctx.fillRect(i * cellWidth, j * cellHeight, cellWidth, cellHeight);
@@ -657,15 +552,17 @@ function updateVisualization(data) {
         }
     }
     // Add title and annotations
-    ctx.font = 'bold 16px Arial';
-    ctx.fillStyle = '#2c3e50';
+    ctx.font = 'bold 20px Arial';
     const yearDifference = data.year - baselineYear;
-    const yearDisplay = yearDifference != 0 ? `${data.year} vs. ${baselineYear}`: `${data.year}`
-    ctx.fillText(`Sea Ice Thickness (${data.units || 'm'}) - ${yearDisplay}`, 10, 30);
-
-    ctx.font = '12px Arial';
-    ctx.fillStyle = '#7f8c8d';
-    ctx.fillText('7 thickness levels', 10, 55);
+    const yearDisplay = yearDifference != 0 ? `${data.year} vs. ${baselineYear}` : `${data.year}`
+    const text = `Sea Ice Thickness (m) - ${yearDisplay}`;
+    // Draw white outline first
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = 'white';
+    ctx.strokeText(text, 10, 30);
+    // Draw main text on top
+    ctx.fillStyle = '#2c3e50';
+    ctx.fillText(text, 10, 30);
 
     // Draw mini color bar at bottom right
     const miniBarWidth = 140;
