@@ -461,8 +461,8 @@ function updateToolTip(event, iceDepth, baseDepth) {
         tooltip.style.visibility = 'visible';
     }
 
-    tooltip.style.left = tooltipX + 'px';
-    tooltip.style.top = tooltipY + 'px';
+    tooltip.style.left = tooltipX + 16 + 'px';
+    tooltip.style.top = tooltipY + 16 + 'px';
 }
 
 function updatePointStats(i, j, iceDepth) {
