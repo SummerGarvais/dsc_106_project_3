@@ -45,10 +45,10 @@ async function loadBaselineData(year) {
 // Initialize all viz elements when the page loads
 document.addEventListener('DOMContentLoaded', async function () {
     await loadBaselineData(baselineYear);
-    initializeSeaIceCanvas();
+    setupIceCanvas();
     setupYearSlider();
     loadRememberedYear();
-    setupComparisonSlider();
+    setupCompareSlider();
     setupEasterEgg();
 });
 
@@ -65,7 +65,7 @@ function setupEasterEgg() {
     });
 }
 
-function initializeSeaIceCanvas() {
+function setupIceCanvas() {
     // Create canvas
     const canvas = document.createElement('canvas');
     canvas.id = 'iceCanvas';
@@ -118,16 +118,9 @@ function setupYearSlider() {
         const year = parseInt(event.target.value);
         yearDisplay.textContent = year; // Update year selection label
         localStorage.setItem('selectedYear', year);
-        loadYear(year); // Update map
-
-        
         maxYear = year; // Update max year for compare slider
-        // Check if compare slider exceeds the new year value
-        const compareValue = parseInt(compareSlider.value);
-        if (compareValue > year) {
-            compareSlider.value = year;
-            compareDisplay.textContent = year;
-        }
+        clampCompareSlider();
+        loadYear(year); // Update map
     });
 
     slider.setAttribute('list', 'decades');
@@ -146,6 +139,47 @@ function setupYearSlider() {
     });
 
     document.body.appendChild(datalist);
+}
+
+function setupCompareSlider() {
+    const compareSlider = document.getElementById('compareSlider');
+    const compareDisplay = document.getElementById('compareValue');
+
+    compareSlider.addEventListener('input', async (event) => {
+        let compareYear = parseInt(event.target.value);
+        // Clamp the value to not exceed the year slider's value
+        if (compareYear > maxYear) {
+            compareYear = maxYear;
+            compareSlider.value = maxYear;
+        }
+
+        compareDisplay.textContent = compareYear;
+        localStorage.setItem('compareYear', compareYear);
+        baselineYear = compareYear;
+        baseValues = [];
+        baseTotalCells = 0;
+        await loadBaselineData(compareYear);
+        if (currentData) {
+            updateOverallStats(currentData);
+            updateVisualization(currentData)
+        }
+    });
+
+    compareSlider.setAttribute('list', 'compareDecades');
+
+    const compareDatalist = document.createElement('datalist');
+    compareDatalist.id = 'compareDecades';
+
+    const years = [1850, 1860, 1870, 1880, 1890, 1900, 1910, 1920,
+        1930, 1940, 1950, 1960, 1970, 1980, 1990, 2000];
+
+    years.forEach(year => {
+        const option = document.createElement('option');
+        option.value = year;
+        compareDatalist.appendChild(option);
+    });
+
+    document.body.appendChild(compareDatalist);
 }
 
 async function loadYear(year) {
@@ -192,6 +226,23 @@ async function loadYear(year) {
     }
 }
 
+function clampCompareSlider() {
+    const compareSlider = document.getElementById('compareSlider');
+    if (!compareSlider) return;
+    const compareDisplay = document.getElementById('compareValue');
+
+    let compareYear = parseInt(compareSlider.value);
+    // Check if compare slider exceeds the new year value
+    if (compareYear > maxYear) {
+        compareSlider.value = maxYear;
+        compareDisplay.textContent = maxYear;
+        baselineYear = maxYear;
+        baseValues = [];
+        baseTotalCells = 0;
+        updateDisplay();
+    }
+}
+
 // Sliders will remember their years between refreshes, so load it in to make all other elements match!
 async function loadRememberedYear() {
     const slider = document.getElementById('yearSlider');
@@ -209,73 +260,113 @@ async function loadRememberedYear() {
     }
     if (savedCompareYear) {
         compareSlider.value = savedCompareYear;
-    }
-    if (savedCompareYear) {
         baselineYear = parseInt(savedCompareYear);
         baseValues = [];
         baseTotalCells = 0;
         await loadBaselineData(baselineYear);
     }
 
-    const initialYear = parseInt(slider.value);
-    const initialCompareYear = parseInt(compareSlider.value);
-
-    yearDisplay.textContent = initialYear;
-    compareDisplay.textContent = initialCompareYear;
-
-    loadYear(initialYear);
+    loadYear(savedYear);
+    clampCompareSlider();
 }
 
-// Update stats for that year at the bottom of the page
-function updateOverallStats(data) {
+function updateVisualization(data) {
+    const canvas = document.getElementById('iceCanvas');
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
     const thicknessData = data.data;
-    const overallStatsDiv = document.getElementById('overall-stats');
 
-    if (!overallStatsDiv || !thicknessData) return;
+    if (!thicknessData || thicknessData.length === 0) return;
 
-    // Flatten the array and filter valid values
-    const values = [];
-    for (let i = 0; i < thicknessData.length; i++) {
-        for (let j = 0; j < thicknessData[i].length; j++) {
-            const val = thicknessData[i][j];
-            if (val !== null && !isNaN(val) && val > 0) {
-                values.push(val);
+    const nx = thicknessData[0].length;
+    const ny = thicknessData.length;
+    const cellWidth = width / nx;
+    const cellHeight = height / ny;
+
+    // Clear canvas
+    ctx.fillStyle = '#f0f0f0';
+    ctx.fillRect(0, 0, width, height);
+
+    // Draw baseline year in gray
+    if (baselineData) {
+        const baseThickData = baselineData.data;
+        for (let i = 0; i < nx; i++) {
+            for (let j = 0; j < ny; j++) {
+                let flipped_x = nx - i - 1;
+                let flipped_y = ny - j - 1;
+                const baseValue = baseThickData[flipped_y][flipped_x];
+
+                if (baseValue !== null && !isNaN(baseValue) && baseValue > 0) {
+                    ctx.fillStyle = '#c2c0c0';  // gray for baseline ice
+                } else {
+                    ctx.fillStyle = '#e0e0e0';  // light gray for land/no ice
+                }
+                ctx.fillRect(i * cellWidth, j * cellHeight, cellWidth, cellHeight);
             }
         }
     }
 
-    if (values.length > 0) {
-        const mean = values.reduce((a, b) => a + b, 0) / values.length;
-        const max = Math.max(...values);
-        const min = Math.min(...values);
+    // Draw selected year on top with transparency ---
+    for (let i = 0; i < nx; i++) {
+        for (let j = 0; j < ny; j++) {
+            let flipped_x = nx - i - 1;
+            let flipped_y = ny - j - 1;
+            const value = thicknessData[flipped_y][flipped_x];
 
-        // Calculate ice coverage percentage
-        const totalCells = thicknessData.length * thicknessData[0].length;
-        const iceCoverage = (values.length / totalCells * 100).toFixed(1);
+            if (value !== null && !isNaN(value) && value > 0) {
+                let color;
+                if (value <= 0.1) color = 'rgba(240,248,255,0.85)';
+                else if (value <= 0.5) color = 'rgba(198,219,239,0.85)';
+                else if (value <= 1.0) color = 'rgba(158,202,225,0.85)';
+                else if (value <= 1.5) color = 'rgba(107,174,214,0.85)';
+                else if (value <= 2.0) color = 'rgba(66,146,198,0.85)';
+                else if (value <= 3.0) color = 'rgba(33,113,181,0.85)';
+                else color = 'rgba(8,69,148,0.85)';
 
-        overallStatsDiv.innerHTML = `
-            <strong>📊 Overall Statistics for ${data.year}:</strong><br>
-            Mean ice thickness: ${mean.toFixed(3)} ${data.units || 'm'} | 
-            Max: ${max.toFixed(3)} ${data.units || 'm'} | 
-            Min: ${min.toFixed(3)} ${data.units || 'm'}<br>
-            Ice-covered area fraction: ${iceCoverage}% (${values.length.toLocaleString()} of ${totalCells.toLocaleString()} cells)
-        `;
-        const comparedStatsDiv = document.getElementById('compared-stats');
-        if (comparedStatsDiv && baselineData) {
-            const coverageDiff = ((iceCoverage - baseIceCoverage) / baseIceCoverage * 100).toFixed(1);
-            const coverageDirection = coverageDiff > 0 ? 'increase' : 'decrease';
+                ctx.fillStyle = color;
+                ctx.fillRect(i * cellWidth, j * cellHeight, cellWidth, cellHeight);
 
-            comparedStatsDiv.innerHTML = `
-                <strong>📊 ${data.year} statistics vs. ${baselineYear} baseline:</strong><br>
-                Mean ice thickness difference: ${(mean - baseMean).toFixed(3)} ${baselineData.units || 'm'} | 
-                Max difference: ${(max - baseMax).toFixed(3)} ${baselineData.units || 'm'} | 
-                Min difference: ${(min - baseMin).toFixed(3)} ${baselineData.units || 'm'}<br>
-                Ice-covered area difference: ${coverageDiff}% ${coverageDirection} in ice-coverage from ${baselineYear} -> ${data.year} (${values.length.toLocaleString()} of ${baseValues.length.toLocaleString()} cells)
-            `;
-        } else {
-            overallStatsDiv.innerHTML = `📊 No sea ice detected in ${data.year}`;
+                ctx.strokeStyle = '#2c5f8a';
+                ctx.lineWidth = 0.1;
+                ctx.strokeRect(i * cellWidth, j * cellHeight, cellWidth, cellHeight);
+            }
+            // If no ice in selected year, leave the gray baseline visible underneath
         }
     }
+    updateDisplay();
+
+    // Draw mini color bar at bottom right
+    const miniBarWidth = 140;
+    const miniBarHeight = 12;
+    const miniBarX = width - miniBarWidth - 10;
+    const miniBarY = height - 25;
+
+    // Define the color segments for mini bar
+    const segments = [
+        { color: '#f0f8ff', width: miniBarWidth / 7 },  // 0-0.1m
+        { color: '#c6dbef', width: miniBarWidth / 7 },  // 0.1-0.5m
+        { color: '#9ecae1', width: miniBarWidth / 7 },  // 0.5-1.0m
+        { color: '#6baed6', width: miniBarWidth / 7 },  // 1.0-1.5m
+        { color: '#4292c6', width: miniBarWidth / 7 },  // 1.5-2.0m
+        { color: '#2171b5', width: miniBarWidth / 7 },  // 2.0-3.0m
+        { color: '#084594', width: miniBarWidth / 7 }   // 3.0+m
+    ];
+
+    for (let i = 0; i < segments.length; i++) {
+        ctx.fillStyle = segments[i].color;
+        ctx.fillRect(miniBarX + (i * segments[i].width), miniBarY, segments[i].width, miniBarHeight);
+    }
+
+    // Border around mini color bar
+    ctx.strokeStyle = '#999';
+    ctx.strokeRect(miniBarX, miniBarY, miniBarWidth, miniBarHeight);
+
+    // Labels for mini color bar
+    ctx.fillStyle = '#666';
+    ctx.font = '9px Arial';
+    ctx.fillText('Thinner', miniBarX, miniBarY - 2);
+    ctx.fillText('Thicker', miniBarX + miniBarWidth - 30, miniBarY - 2);
 }
 
 function handleMouseMove(event) {
@@ -354,24 +445,25 @@ function updateToolTip(event, iceDepth, baseDepth) {
     tooltip.style.top = tooltipY + 16 + 'px';
 }
 
-function updatePointStats(i, j, iceDepth) {
-    // Update point stats at bottom of the document with data of cell being hovered over
-    const pointStatsDiv = document.getElementById('point-stats');
-    if (!pointStatsDiv) return;
+function updateDisplay() {
+    const canvas = document.getElementById('iceCanvas');
+    const ctx = canvas.getContext('2d');
+    const data = currentData;
 
-    if (iceDepth !== null && !isNaN(iceDepth) && iceDepth > 0) {
-        pointStatsDiv.innerHTML = `
-            📍 <strong>Location:</strong> (${i}, ${j}) | 
-            <strong>Ice Thickness:</strong> ${iceDepth.toFixed(3)} ${currentData.units || 'm'}<br>
-            <span style="font-size: 12px; color: #666;">Hover over map for values | Click year buttons to change time</span>
-        `;
-    } else {
-        pointStatsDiv.innerHTML = `
-            📍 <strong>Location:</strong> (${i}, ${j}) | 
-            <strong>Ice Thickness:</strong> 0.000 m <br>
-            <span style="font-size: 12px; color: #666;">Hover over map for values | Click year buttons to change time</span>
-        `;
-    }
+    // Add title and annotations
+    ctx.font = 'bold 20px Arial';
+    const yearDifference = data.year - baselineYear;
+    const yearDisplay = yearDifference != 0 ? `${data.year} vs. ${baselineYear}` : `${data.year}`
+    const text = `Sea Ice Thickness (m) - ${yearDisplay}`;
+    // Draw white outline first
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = 'white';
+    ctx.strokeText(text, 10, 30);
+    // Draw main text on top
+    ctx.fillStyle = '#2c3e50';
+    ctx.fillText(text, 10, 30);
+
+    console.log(`Updated display for year ${data.year} with baseline ${baselineYear}`);
 }
 
 function createColorbar() {
@@ -445,155 +537,74 @@ function createColorbar() {
         .style("fill", "#666");
 }
 
-function setupComparisonSlider() {
-    const compareSlider = document.getElementById('compareSlider');
-    const compareDisplay = document.getElementById('compareValue');
+function updatePointStats(i, j, iceDepth) {
+    // Update point stats at bottom of the document with data of cell being hovered over
+    const pointStatsDiv = document.getElementById('point-stats');
+    if (!pointStatsDiv) return;
 
-    compareSlider.addEventListener('input', async (event) => {
-        let compareYear = parseInt(event.target.value);
-        // Clamp the value to not exceed the year slider's value
-        if (compareYear > maxYear) {
-            compareYear = maxYear;
-            compareSlider.value = maxYear;
-        }
-
-        compareDisplay.textContent = compareYear;
-        localStorage.setItem('compareYear', compareYear);
-        baselineYear = compareYear;
-        baseValues = [];
-        baseTotalCells = 0;
-        await loadBaselineData(compareYear);
-        if (currentData) {
-            updateOverallStats(currentData);
-            updateVisualization(currentData)
-        }
-    });
-
-    compareSlider.setAttribute('list', 'compareDecades');
-
-    const compareDatalist = document.createElement('datalist');
-    compareDatalist.id = 'compareDecades';
-
-    const years = [1850, 1860, 1870, 1880, 1890, 1900, 1910, 1920,
-        1930, 1940, 1950, 1960, 1970, 1980, 1990, 2000];
-
-    years.forEach(year => {
-        const option = document.createElement('option');
-        option.value = year;
-        compareDatalist.appendChild(option);
-    });
-
-    document.body.appendChild(compareDatalist);
+    if (iceDepth !== null && !isNaN(iceDepth) && iceDepth > 0) {
+        pointStatsDiv.innerHTML = `
+            📍 <strong>Location:</strong> (${i}, ${j}) | 
+            <strong>Ice Thickness:</strong> ${iceDepth.toFixed(3)} ${currentData.units || 'm'}<br>
+            <span style="font-size: 12px; color: #666;">Hover over map for values | Click year buttons to change time</span>
+        `;
+    } else {
+        pointStatsDiv.innerHTML = `
+            📍 <strong>Location:</strong> (${i}, ${j}) | 
+            <strong>Ice Thickness:</strong> 0.000 m <br>
+            <span style="font-size: 12px; color: #666;">Hover over map for values | Click year buttons to change time</span>
+        `;
+    }
 }
 
-
-function updateVisualization(data) {
-    const canvas = document.getElementById('iceCanvas');
-    if (!canvas) return;
-
-    const ctx = canvas.getContext('2d');
+// Update stats for that year at the bottom of the page
+function updateOverallStats(data) {
     const thicknessData = data.data;
+    const overallStatsDiv = document.getElementById('overall-stats');
 
-    if (!thicknessData || thicknessData.length === 0) return;
+    if (!overallStatsDiv || !thicknessData) return;
 
-    const nx = thicknessData[0].length;
-    const ny = thicknessData.length;
-    const cellWidth = width / nx;
-    const cellHeight = height / ny;
-
-    // Clear canvas
-    ctx.fillStyle = '#f0f0f0';
-    ctx.fillRect(0, 0, width, height);
-
-    // Draw baseline year in gray
-    if (baselineData) {
-        const baseThickData = baselineData.data;
-        for (let i = 0; i < nx; i++) {
-            for (let j = 0; j < ny; j++) {
-                let flipped_x = nx - i - 1;
-                let flipped_y = ny - j - 1;
-                const baseValue = baseThickData[flipped_y][flipped_x];
-
-                if (baseValue !== null && !isNaN(baseValue) && baseValue > 0) {
-                    ctx.fillStyle = '#c2c0c0';  // gray for baseline ice
-                } else {
-                    ctx.fillStyle = '#e0e0e0';  // light gray for land/no ice
-                }
-                ctx.fillRect(i * cellWidth, j * cellHeight, cellWidth, cellHeight);
+    // Flatten the array and filter valid values
+    const values = [];
+    for (let i = 0; i < thicknessData.length; i++) {
+        for (let j = 0; j < thicknessData[i].length; j++) {
+            const val = thicknessData[i][j];
+            if (val !== null && !isNaN(val) && val > 0) {
+                values.push(val);
             }
         }
     }
 
-    // Draw selected year on top with transparency ---
-    for (let i = 0; i < nx; i++) {
-        for (let j = 0; j < ny; j++) {
-            let flipped_x = nx - i - 1;
-            let flipped_y = ny - j - 1;
-            const value = thicknessData[flipped_y][flipped_x];
+    if (values.length > 0) {
+        const mean = values.reduce((a, b) => a + b, 0) / values.length;
+        const max = Math.max(...values);
+        const min = Math.min(...values);
 
-            if (value !== null && !isNaN(value) && value > 0) {
-                let color;
-                if (value <= 0.1) color = 'rgba(240,248,255,0.85)';
-                else if (value <= 0.5) color = 'rgba(198,219,239,0.85)';
-                else if (value <= 1.0) color = 'rgba(158,202,225,0.85)';
-                else if (value <= 1.5) color = 'rgba(107,174,214,0.85)';
-                else if (value <= 2.0) color = 'rgba(66,146,198,0.85)';
-                else if (value <= 3.0) color = 'rgba(33,113,181,0.85)';
-                else color = 'rgba(8,69,148,0.85)';
+        // Calculate ice coverage percentage
+        const totalCells = thicknessData.length * thicknessData[0].length;
+        const iceCoverage = (values.length / totalCells * 100).toFixed(1);
 
-                ctx.fillStyle = color;
-                ctx.fillRect(i * cellWidth, j * cellHeight, cellWidth, cellHeight);
+        overallStatsDiv.innerHTML = `
+            <strong>📊 Overall Statistics for ${data.year}:</strong><br>
+            Mean ice thickness: ${mean.toFixed(3)} ${data.units || 'm'} | 
+            Max: ${max.toFixed(3)} ${data.units || 'm'} | 
+            Min: ${min.toFixed(3)} ${data.units || 'm'}<br>
+            Ice-covered area fraction: ${iceCoverage}% (${values.length.toLocaleString()} of ${totalCells.toLocaleString()} cells)
+        `;
+        const comparedStatsDiv = document.getElementById('compared-stats');
+        if (comparedStatsDiv && baselineData) {
+            const coverageDiff = ((iceCoverage - baseIceCoverage) / baseIceCoverage * 100).toFixed(1);
+            const coverageDirection = coverageDiff > 0 ? 'increase' : 'decrease';
 
-                ctx.strokeStyle = '#2c5f8a';
-                ctx.lineWidth = 0.1;
-                ctx.strokeRect(i * cellWidth, j * cellHeight, cellWidth, cellHeight);
-            }
-            // If no ice in selected year, leave the gray baseline visible underneath
+            comparedStatsDiv.innerHTML = `
+                <strong>📊 ${data.year} statistics vs. ${baselineYear} baseline:</strong><br>
+                Mean ice thickness difference: ${(mean - baseMean).toFixed(3)} ${baselineData.units || 'm'} | 
+                Max difference: ${(max - baseMax).toFixed(3)} ${baselineData.units || 'm'} | 
+                Min difference: ${(min - baseMin).toFixed(3)} ${baselineData.units || 'm'}<br>
+                Ice-covered area difference: ${coverageDiff}% ${coverageDirection} in ice-coverage from ${baselineYear} -> ${data.year} (${values.length.toLocaleString()} of ${baseValues.length.toLocaleString()} cells)
+            `;
+        } else {
+            overallStatsDiv.innerHTML = `📊 No sea ice detected in ${data.year}`;
         }
     }
-    // Add title and annotations
-    ctx.font = 'bold 20px Arial';
-    const yearDifference = data.year - baselineYear;
-    const yearDisplay = yearDifference != 0 ? `${data.year} vs. ${baselineYear}` : `${data.year}`
-    const text = `Sea Ice Thickness (m) - ${yearDisplay}`;
-    // Draw white outline first
-    ctx.lineWidth = 3;
-    ctx.strokeStyle = 'white';
-    ctx.strokeText(text, 10, 30);
-    // Draw main text on top
-    ctx.fillStyle = '#2c3e50';
-    ctx.fillText(text, 10, 30);
-
-    // Draw mini color bar at bottom right
-    const miniBarWidth = 140;
-    const miniBarHeight = 12;
-    const miniBarX = width - miniBarWidth - 10;
-    const miniBarY = height - 25;
-
-    // Define the color segments for mini bar
-    const segments = [
-        { color: '#f0f8ff', width: miniBarWidth / 7 },  // 0-0.1m
-        { color: '#c6dbef', width: miniBarWidth / 7 },  // 0.1-0.5m
-        { color: '#9ecae1', width: miniBarWidth / 7 },  // 0.5-1.0m
-        { color: '#6baed6', width: miniBarWidth / 7 },  // 1.0-1.5m
-        { color: '#4292c6', width: miniBarWidth / 7 },  // 1.5-2.0m
-        { color: '#2171b5', width: miniBarWidth / 7 },  // 2.0-3.0m
-        { color: '#084594', width: miniBarWidth / 7 }   // 3.0+m
-    ];
-
-    for (let i = 0; i < segments.length; i++) {
-        ctx.fillStyle = segments[i].color;
-        ctx.fillRect(miniBarX + (i * segments[i].width), miniBarY, segments[i].width, miniBarHeight);
-    }
-
-    // Border around mini color bar
-    ctx.strokeStyle = '#999';
-    ctx.strokeRect(miniBarX, miniBarY, miniBarWidth, miniBarHeight);
-
-    // Labels for mini color bar
-    ctx.fillStyle = '#666';
-    ctx.font = '9px Arial';
-    ctx.fillText('Thinner', miniBarX, miniBarY - 2);
-    ctx.fillText('Thicker', miniBarX + miniBarWidth - 30, miniBarY - 2);
-
 }
