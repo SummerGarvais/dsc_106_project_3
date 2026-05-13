@@ -7,8 +7,15 @@ let colorScale = null;
 let baselineData = null;
 let baselineYear = 1850;
 let maxYear = 1850;
-let baseMean = 0, baseMax = 0, baseMin = 0, baseIceCoverage = 0;
+let baseMean = 0, baseMax = 0, baseIceCoverage = 0;
 let baseValues = [], baseTotalCells = 0;
+
+const GLOBAL_TEMP_ANOMALY = {
+    1850: 0.00, 1860: 0.01, 1870: -0.01, 1880: 0.04,
+    1890: -0.03, 1900: -0.01, 1910: -0.10, 1920: -0.02,
+    1930: 0.06, 1940: 0.14, 1950: 0.07, 1960: 0.07,
+    1970: 0.10, 1980: 0.22, 1990: 0.35, 2000: 0.43
+};
 
 // Load 1850 data
 async function loadBaselineData(year) {
@@ -32,7 +39,6 @@ async function loadBaselineData(year) {
         if (baseValues.length > 0) {
             baseMean = baseValues.reduce((a, b) => a + b, 0) / baseValues.length;
             baseMax = Math.max(...baseValues);
-            baseMin = Math.min(...baseValues);
             baseTotalCells = baseThickData.length * baseThickData[0].length;
             baseIceCoverage = (baseValues.length / baseTotalCells * 100).toFixed(1);
         }
@@ -91,7 +97,7 @@ function setupIceCanvas() {
         const pointStatsDiv = document.getElementById('point-stats');
         if (pointStatsDiv) {
             pointStatsDiv.innerHTML = `
-                📍 <strong>Location:</strong> No Data | 
+                📍 <strong>Location:</strong> No location selected |
                 <strong>Ice Thickness:</strong> N/A <br>
                 <span style="font-size: 12px; color: #666;">Hover over map for values | Click year buttons to change time</span>
             `;
@@ -114,12 +120,12 @@ function setupYearSlider() {
     const compareDisplay = document.getElementById('compareValue');
 
     // Update as you drag
-    slider.addEventListener('input', (event) => {
+    slider.addEventListener('input', async (event) => {
         const year = parseInt(event.target.value);
         yearDisplay.textContent = year; // Update year selection label
         localStorage.setItem('selectedYear', year);
         maxYear = year; // Update max year for compare slider
-        clampCompareSlider();
+        await clampCompareSlider();
         loadYear(year); // Update map
     });
 
@@ -226,7 +232,7 @@ async function loadYear(year) {
     }
 }
 
-function clampCompareSlider() {
+async function clampCompareSlider() {
     const compareSlider = document.getElementById('compareSlider');
     if (!compareSlider) return;
     const compareDisplay = document.getElementById('compareValue');
@@ -236,10 +242,11 @@ function clampCompareSlider() {
     if (compareYear > maxYear) {
         compareSlider.value = maxYear;
         compareDisplay.textContent = maxYear;
+        localStorage.setItem('compareYear', maxYear);
         baselineYear = maxYear;
         baseValues = [];
         baseTotalCells = 0;
-        updateDisplay();
+        await loadBaselineData(baselineYear);
     }
 }
 
@@ -266,7 +273,7 @@ async function loadRememberedYear() {
         await loadBaselineData(baselineYear);
     }
 
-    loadYear(savedYear);
+    loadYear(savedYear || document.getElementById('yearSlider').value || '1850');
     clampCompareSlider();
 }
 
@@ -393,9 +400,11 @@ function handleMouseMove(event) {
         let flipped_y = ny - j - 1;
         const iceDepth = thicknessData[flipped_y][flipped_x];
         const baseDepth = baselineData ? baselineData.data[flipped_y][flipped_x] : null;
+        const lat = currentData.lat[flipped_y][flipped_x];
+        const lon = currentData.lon[flipped_y][flipped_x];
 
         updateToolTip(event, iceDepth, baseDepth);
-        updatePointStats(i, j, iceDepth);
+        updatePointStats(lat, lon, iceDepth);
     }
 }
 
@@ -537,24 +546,34 @@ function createColorbar() {
         .style("fill", "#666");
 }
 
-function updatePointStats(i, j, iceDepth) {
-    // Update point stats at bottom of the document with data of cell being hovered over
+function updatePointStats(lat, lon, iceDepth) {
     const pointStatsDiv = document.getElementById('point-stats');
     if (!pointStatsDiv) return;
 
-    if (iceDepth !== null && !isNaN(iceDepth) && iceDepth > 0) {
-        pointStatsDiv.innerHTML = `
-            📍 <strong>Location:</strong> (${i}, ${j}) | 
-            <strong>Ice Thickness:</strong> ${iceDepth.toFixed(3)} ${currentData.units || 'm'}<br>
-            <span style="font-size: 12px; color: #666;">Hover over map for values | Click year buttons to change time</span>
-        `;
-    } else {
-        pointStatsDiv.innerHTML = `
-            📍 <strong>Location:</strong> (${i}, ${j}) | 
-            <strong>Ice Thickness:</strong> 0.000 m <br>
-            <span style="font-size: 12px; color: #666;">Hover over map for values | Click year buttons to change time</span>
-        `;
-    }
+    const normLon = lon > 180 ? lon - 360 : lon;
+    const latStr = `${Math.abs(lat).toFixed(2)}°${lat >= 0 ? 'N' : 'S'}`;
+    const lonStr = `${Math.abs(normLon).toFixed(2)}°${normLon >= 0 ? 'E' : 'W'}`;
+    const thickness = (iceDepth !== null && !isNaN(iceDepth) && iceDepth > 0)
+        ? `${iceDepth.toFixed(3)} ${currentData.units || 'm'}`
+        : '0.000 m';
+
+    pointStatsDiv.innerHTML = `
+        📍 <strong>Location:</strong> ${latStr}, ${lonStr} |
+        <strong>Ice Thickness:</strong> ${thickness}<br>
+        <span style="font-size: 12px; color: #666;">Hover over map for values | Click year buttons to change time</span>
+    `;
+}
+
+// Maps a temperature difference (°C) to a colour on a green→yellow→orange→red scale.
+// Scale is anchored to the maximum possible pairwise difference in the dataset:
+//   max anomaly (2000) = +0.43, min anomaly (1910) = −0.10  →  range = 0.53 °C
+function tempDiffColor(value) {
+    const MAX = 0.53;
+    if (value <= 0) return '#4caf50';                          // green  – no warming / cooler
+    const t = Math.min(value / MAX, 1);
+    if (t < 1 / 3) return '#f9c74f';                          // yellow – slight warming
+    if (t < 2 / 3) return '#f8961e';                          // orange – moderate warming
+    return '#e63946';                                          // red    – significant warming
 }
 
 // Update stats for that year at the bottom of the page
@@ -578,30 +597,43 @@ function updateOverallStats(data) {
     if (values.length > 0) {
         const mean = values.reduce((a, b) => a + b, 0) / values.length;
         const max = Math.max(...values);
-        const min = Math.min(...values);
 
-        // Calculate ice coverage percentage
         const totalCells = thicknessData.length * thicknessData[0].length;
         const iceCoverage = (values.length / totalCells * 100).toFixed(1);
 
+        const tempVs1850 = GLOBAL_TEMP_ANOMALY[data.year];
+        const tempVs1850Str = tempVs1850 !== undefined
+            ? `<span style="color:${tempDiffColor(tempVs1850)};font-weight:bold">${tempVs1850 >= 0 ? '+' : ''}${tempVs1850.toFixed(2)}°C</span> vs. 1850`
+            : 'N/A';
+
         overallStatsDiv.innerHTML = `
             <strong>📊 Overall Statistics for ${data.year}:</strong><br>
-            Mean ice thickness: ${mean.toFixed(3)} ${data.units || 'm'} | 
-            Max: ${max.toFixed(3)} ${data.units || 'm'} | 
-            Min: ${min.toFixed(3)} ${data.units || 'm'}<br>
-            Ice-covered area fraction: ${iceCoverage}% (${values.length.toLocaleString()} of ${totalCells.toLocaleString()} cells)
+            Mean ice thickness: ${mean.toFixed(3)} ${data.units || 'm'} |
+            Max: ${max.toFixed(3)} ${data.units || 'm'}<br>
+            Ice-covered area fraction: ${iceCoverage}%<br>
+            Global avg temperature: ${tempVs1850Str}
         `;
+
         const comparedStatsDiv = document.getElementById('compared-stats');
         if (comparedStatsDiv && baselineData) {
-            const coverageDiff = ((iceCoverage - baseIceCoverage) / baseIceCoverage * 100).toFixed(1);
-            const coverageDirection = coverageDiff > 0 ? 'increase' : 'decrease';
+            const coverageDiff = Math.abs((iceCoverage - baseIceCoverage) / baseIceCoverage * 100).toFixed(1);
+            const coverageDirection = (iceCoverage - baseIceCoverage) >= 0 ? 'increase' : 'decrease';
+
+            const tempSelected = GLOBAL_TEMP_ANOMALY[data.year];
+            const tempBaseline = GLOBAL_TEMP_ANOMALY[baselineYear];
+            const tempDiff = (tempSelected !== undefined && tempBaseline !== undefined)
+                ? tempSelected - tempBaseline
+                : null;
+            const tempDiffStr = tempDiff !== null
+                ? `<span style="color:${tempDiffColor(tempDiff)};font-weight:bold">${tempDiff >= 0 ? '+' : ''}${tempDiff.toFixed(2)}°C</span>`
+                : 'N/A';
 
             comparedStatsDiv.innerHTML = `
                 <strong>📊 ${data.year} statistics vs. ${baselineYear} baseline:</strong><br>
-                Mean ice thickness difference: ${(mean - baseMean).toFixed(3)} ${baselineData.units || 'm'} | 
-                Max difference: ${(max - baseMax).toFixed(3)} ${baselineData.units || 'm'} | 
-                Min difference: ${(min - baseMin).toFixed(3)} ${baselineData.units || 'm'}<br>
-                Ice-covered area difference: ${coverageDiff}% ${coverageDirection} in ice-coverage from ${baselineYear} -> ${data.year} (${values.length.toLocaleString()} of ${baseValues.length.toLocaleString()} cells)
+                Mean ice thickness difference: ${(mean - baseMean).toFixed(3)} ${baselineData.units || 'm'} |
+                Max difference: ${(max - baseMax).toFixed(3)} ${baselineData.units || 'm'}<br>
+                Ice-covered area difference: ${coverageDiff}% ${coverageDirection} from ${baselineYear} → ${data.year}<br>
+                Global avg temperature ${data.year} vs. ${baselineYear}: ${tempDiffStr}
             `;
         } else {
             overallStatsDiv.innerHTML = `📊 No sea ice detected in ${data.year}`;
